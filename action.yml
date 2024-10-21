@@ -1,0 +1,38 @@
+name: 'Install Clusterctl'
+description: 'Install Clusterctl and add it to the $PATH'
+# start with linux-amd64 current or specified version, then os/arch auto-detect if required
+# https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#default-environment-variables
+inputs:
+  clusterctl-version:
+    description: 'The clusterctl version to use (ex: v1.8.4)'
+    required: false
+runs:
+  using: 'composite'
+  steps:
+  - name: Install jq
+    uses: dcarbone/install-jq-action@v2.1.0
+  - name: Determine latest version
+    if: ${{ inputs.cluster_version == '' }}
+    run: |- 
+      echo "BIN_VER=$(curl -L \
+        -H 'Accept: application/vnd.github+json' \
+        -H 'Authorization: Bearer ${{ github.token }}' \
+        -H 'X-GitHub-Api-Version: 2022-11-28' \
+        https://api.github.com/repos/kubernetes-sigs/cluster-api/releases | \
+        jq -r .[].assets[8].browser_download_url | \
+          sort -r | \
+          grep -P '/v\d*\.\d*\.\d*/' | \
+          head -1)" \
+        >> $GITHUB_ENV
+    shell: bash
+  - name: Set user-defined version
+    if: ${{ inputs.cluster_version != '' }}
+    run: |-
+      echo "BIN_VER=https://github.com/kubernetes-sigs/cluster-api/releases/download/${{ inputs.cluster_version }}/clusterctl-linux-amd64" \
+        >> $GITHUB_ENV
+    shell: bash
+  - name: Fetch and install clusterctl binary
+    run: |-
+      curl -L ${{ env.BIN_VER }} -o clusterctl
+      sudo install -o root -g root -m 0755 clusterctl /usr/local/bin/clusterctl
+    shell: bash
